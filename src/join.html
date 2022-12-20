@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Remote Crossplay</title>
+		<!-- Loading Spinner -->
+		<style>
+			#loading {
+				width: 100%;
+				height: 100%;
+				background-color: rgba(0, 0, 0, 0.65);
+				overflow-x: hidden;
+				position: fixed;
+				color: white;
+				display: flex;
+				top: 0;
+				left: 0;
+				z-index: 10;
+				justify-content: center;
+				align-items: center;
+				flex-direction: column;
+			}
+
+			#loading .text {
+				margin-top: 4.5rem;
+			}
+
+			.spin::before {
+				animation: 1.5s cubic-bezier(0.4, 0.7, 0.9, 0.3) infinite spinner;
+				animation-play-state: inherit;
+				border: solid 10px #cfd0d1;
+				border-bottom-color: #1c87c9;
+				border-radius: 50%;
+				content: '';
+				height: 80px;
+				width: 80px;
+				position: absolute;
+				transform: translate3d(-50%, -50%, 0);
+			}
+
+			@keyframes spinner {
+				0% {
+					transform: translate3d(-50%, -50%, 0) rotate(0deg);
+				}
+				100% {
+					transform: translate3d(-50%, -50%, 0) rotate(360deg);
+				}
+			}
+		</style>
+		<!-- Collapsible -->
+		<style>
+			.collapsible {
+				background-color: #555555;
+				color: white;
+				cursor: pointer;
+				width: 100%;
+				border: none;
+				outline: none;
+				text-align: left;
+				font-size: 25px;
+				transition: 300ms;
+			}
+
+			.active:not(.debug-element),
+			.collapsible:hover,
+			.collapsible:hover::before {
+				color: #dcdcdc;
+			}
+
+			.collapsible::before {
+				content: '\002B';
+				color: white;
+				font-weight: bold;
+				float: left;
+				margin-left: 5px;
+				padding-right: 5px;
+				transition: 300ms;
+			}
+
+			.active:not(.debug-element)::before {
+				color: #dcdcdc;
+				content: '\2212';
+			}
+
+			.content {
+				padding: 0 18px;
+				max-height: 0;
+				overflow-y: hidden;
+				transition: max-height 0.2s ease-out;
+				margin-left: 10px;
+				border-left: 2px solid #cccccc;
+			}
+
+			.collapsible.inside {
+				padding: 0;
+				font-size: 20px;
+			}
+
+			.collapsible.inside::before {
+				margin-left: initial;
+			}
+
+			@media screen and (max-width: 200px) {
+				.content {
+					padding: 0 5px;
+				}
+			}
+		</style>
+		<!-- Divider -->
+		<style>
+			.divider {
+				display: flex;
+				align-items: center;
+				text-align: center;
+			}
+
+			.divider::before {
+				content: '';
+				border: 0.1px solid white;
+				flex: 1;
+			}
+
+			.divider::after {
+				content: '';
+				border: 0.1px solid white;
+				flex: 1;
+			}
+
+			.divider:not(:empty)::before {
+				margin-right: 0.25em;
+			}
+
+			.divider:not(:empty)::after {
+				margin-left: 0.25em;
+			}
+		</style>
+		<!-- Round Switch -->
+		<style>
+			.switch {
+				position: relative;
+				display: inline-block;
+				width: 40px;
+				height: 24px;
+				flex: none;
+			}
+
+			.switch input {
+				opacity: 0;
+				width: 0;
+				height: 0;
+			}
+
+			.slider {
+				position: absolute;
+				cursor: pointer;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: #ccc;
+				transition: 0.2s;
+				border-radius: 34px;
+			}
+
+			.slider::before {
+				position: absolute;
+				content: '';
+				height: 16px;
+				width: 16px;
+				left: 4px;
+				bottom: 4px;
+				background-color: white;
+				transition: 0.4s;
+				border-radius: 50%;
+			}
+
+			input:checked + .slider {
+				background-color: #2196f3;
+			}
+
+			input:focus + .slider {
+				box-shadow: 0 0 1px #2196f3;
+			}
+
+			input:checked + .slider::before {
+				transform: translateX(16px);
+			}
+
+			input:disabled + .slider {
+				cursor: default;
+			}
+
+			input:checked:disabled + .slider {
+				background-color: #b1c8db;
+			}
+		</style>
+		<!-- Side Panel -->
+		<style>
+			#sidePanel {
+				height: 100%;
+				width: 0;
+				position: fixed;
+				z-index: 1;
+				top: 0;
+				left: 100%;
+				background-color: #555555;
+				color: white;
+				overflow-x: hidden;
+				overflow-y: auto;
+				transition: left 0.5s, width 0.5s;
+			}
+
+			.sidePanelInside {
+				margin: 1rem;
+			}
+		</style>
+		<!-- Buttons -->
+		<style>
+			.user-btn {
+				height: 3rem;
+				width: 100%;
+				margin-bottom: 1rem;
+				font-size: 1rem;
+				border-color: #2196f3;
+				border-radius: 10px;
+				cursor: pointer;
+				transition: 300ms;
+			}
+
+			.user-btn:disabled {
+				cursor: default;
+			}
+
+			.user-btn:hover:not(:disabled) {
+				color: white;
+				outline: none;
+				border-color: red;
+				filter: drop-shadow(2px 2px 2px #ff000066);
+				background-color: #ff5959;
+			}
+
+			.user-btn:active:not(:disabled) {
+				background-color: #d44f4f;
+				scale: 0.98;
+			}
+
+			.user-btn.safe:hover:not(:disabled) {
+				color: white;
+				outline: none;
+				border-color: lightgreen;
+				filter: drop-shadow(2px 2px 2px #30a830);
+				background-color: #48f448;
+			}
+
+			.user-btn.safe:active:not(:disabled) {
+				background-color: #62be62;
+			}
+		</style>
+		<!-- Page Styles -->
+		<style>
+			body {
+				background-color: #3d3d3d;
+				overflow: hidden;
+				font-family: sans-serif;
+			}
+
+			h2 {
+				margin-block-end: 0;
+			}
+
+			h3 {
+				margin-block-end: 5px;
+			}
+
+			p {
+				margin-block-start: 0;
+				margin-block-end: 0;
+				font-size: 20px;
+			}
+
+			#video {
+				position: fixed;
+				top: 0px;
+				left: 0px;
+				width: 100%;
+				height: 100%;
+			}
+
+			#svg {
+				transition: 0.5s;
+			}
+
+			#draggable {
+				position: absolute;
+				z-index: 5;
+				background-color: #f1f1f1;
+				text-align: center;
+				border: none;
+				border-radius: 5px 0 0 5px;
+				padding: 6px 3px 3px 1px;
+				cursor: move;
+			}
+
+			.hidden {
+				display: none !important;
+			}
+
+			.green {
+				color: lightgreen;
+			}
+
+			.red {
+				color: red;
+			}
+
+			.mt-4 {
+				margin-top: 1rem;
+			}
+
+			.settings {
+				margin-bottom: 0.5rem;
+			}
+
+			.setting {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding-top: 1rem;
+			}
+
+			.debug-title {
+				padding: 0.5rem 0 !important;
+			}
+
+			.debug-text {
+				margin-block-end: 1rem;
+				padding-top: 0;
+				border-bottom: 1px solid white;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Verbose loading text -->
+		<div id="loading">
+			<div class="spin"></div>
+			<p id="verbose-text" class="text">Establishing connection...</p>
+		</div>
+		<video id="video" autoplay></video>
+		<div id="draggable" class="hidden">
+			<svg
+				id="svg"
+				xmlns="http://www.w3.org/2000/svg"
+				xmlns:xlink="http://www.w3.org/1999/xlink"
+				width="20"
+				height="20"
+				viewBox="0, 0, 400,400"
+			>
+				<g>
+					<path
+						d="M185.547 100.000 L 85.549 200.000 185.547 300.000 C 240.546 355.000,285.900 400.000,286.335 400.000 C 287.356 400.000,314.063 373.280,314.063 372.259 C 314.062 371.834,275.479 332.902,228.322 285.744 L 142.581 200.000 228.322 114.256 C 275.479 67.098,314.063 28.158,314.063 27.725 C 314.063 26.704,287.340 0.000,286.319 0.000 C 285.893 0.000,240.546 45.000,185.547 100.000 "
+						stroke="none"
+						fill="#000000"
+						fill-rule="evenodd"
+					></path>
+				</g>
+			</svg>
+		</div>
+		<div id="sidePanel">
+			<div class="sidePanelInside">
+				<h2 class="divider">Viewable Host Settings</h2>
+				<div class="settings">
+					<div class="setting">
+						<button class="collapsible inside" open="mouse">Enable Mouse Input</button>
+						<label class="switch">
+							<input bindkey="mouseInput" type="checkbox" checked disabled />
+							<span class="slider"></span>
+						</label>
+					</div>
+					<div id="mouse" class="content settings">
+						<div class="setting">
+							<p>Left Mouse Button</p>
+							<label class="switch">
+								<input mouse="0" type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div class="setting">
+							<p>Middle Mouse Button</p>
+							<label class="switch">
+								<input mouse="1" type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div class="setting">
+							<p>Right Mouse Button</p>
+							<label class="switch">
+								<input mouse="2" type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div class="setting">
+							<p>Wheel</p>
+							<label class="switch">
+								<input mouse="-1" type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+					</div>
+
+					<div class="setting">
+						<button class="collapsible inside" open="keys">Enable Keys Input</button>
+						<label class="switch">
+							<input type="checkbox" checked disabled />
+							<span class="slider"></span>
+						</label>
+					</div>
+					<div id="keys" class="content settings">
+						<!-- Character Keys -->
+						<div class="setting">
+							<button class="collapsible inside" open="character-keys">Character Keys</button>
+							<label class="switch">
+								<input type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div id="character-keys" class="content settings">
+							<div class="setting">
+								<p>A</p>
+								<label class="switch">
+									<input key="45" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>B</p>
+								<label class="switch">
+									<input key="46" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>C</p>
+								<label class="switch">
+									<input key="47" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>D</p>
+								<label class="switch">
+									<input key="48" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>E</p>
+								<label class="switch">
+									<input key="49" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F</p>
+								<label class="switch">
+									<input key="50" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>G</p>
+								<label class="switch">
+									<input key="51" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>H</p>
+								<label class="switch">
+									<input key="52" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>I</p>
+								<label class="switch">
+									<input key="53" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>J</p>
+								<label class="switch">
+									<input key="54" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>K</p>
+								<label class="switch">
+									<input key="55" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>L</p>
+								<label class="switch">
+									<input key="56" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>M</p>
+								<label class="switch">
+									<input key="57" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>N</p>
+								<label class="switch">
+									<input key="58" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>O</p>
+								<label class="switch">
+									<input key="59" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>P</p>
+								<label class="switch">
+									<input key="60" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Q</p>
+								<label class="switch">
+									<input key="61" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>R</p>
+								<label class="switch">
+									<input key="62" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>S</p>
+								<label class="switch">
+									<input key="63" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>T</p>
+								<label class="switch">
+									<input key="64" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>U</p>
+								<label class="switch">
+									<input key="65" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>V</p>
+								<label class="switch">
+									<input key="66" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>W</p>
+								<label class="switch">
+									<input key="67" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>X</p>
+								<label class="switch">
+									<input key="68" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Y</p>
+								<label class="switch">
+									<input key="69" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Z</p>
+								<label class="switch">
+									<input key="70" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Number Keys -->
+						<div class="setting">
+							<button class="collapsible inside" open="number-keys">Number Keys</button>
+							<label class="switch">
+								<input type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div id="number-keys" class="content settings">
+							<div class="setting">
+								<p>Number 0</p>
+								<label class="switch">
+									<input key="35" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 1</p>
+								<label class="switch">
+									<input key="36" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 2</p>
+								<label class="switch">
+									<input key="37" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 3</p>
+								<label class="switch">
+									<input key="38" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 4</p>
+								<label class="switch">
+									<input key="39" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 5</p>
+								<label class="switch">
+									<input key="40" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 6</p>
+								<label class="switch">
+									<input key="41" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 7</p>
+								<label class="switch">
+									<input key="42" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 8</p>
+								<label class="switch">
+									<input key="43" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number 9</p>
+								<label class="switch">
+									<input key="44" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Arrow Keys -->
+						<div class="setting">
+							<button class="collapsible inside" open="arrow-keys">Arrow Keys</button>
+							<label class="switch">
+								<input type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div id="arrow-keys" class="content settings">
+							<div class="setting">
+								<p>Left</p>
+								<label class="switch">
+									<input key="84" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Up</p>
+								<label class="switch">
+									<input key="85" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Right</p>
+								<label class="switch">
+									<input key="86" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Down</p>
+								<label class="switch">
+									<input key="87" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Modifier Keys -->
+						<div class="setting">
+							<button class="collapsible inside" open="modifier-keys">Modifier Keys</button>
+							<label class="switch">
+								<input type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div id="modifier-keys" class="content settings">
+							<div class="setting">
+								<p>Left Alt</p>
+								<label class="switch">
+									<input key="3" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Left Control</p>
+								<label class="switch">
+									<input key="4" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Right Alt</p>
+								<label class="switch">
+									<input key="5" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Right Control</p>
+								<label class="switch">
+									<input key="6" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Left Shift</p>
+								<label class="switch">
+									<input key="7" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Right Shift</p>
+								<label class="switch">
+									<input key="9" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Left Windows</p>
+								<label class="switch">
+									<input key="8" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Right Windows</p>
+								<label class="switch">
+									<input key="10" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Misc Keys -->
+						<div class="setting">
+							<button class="collapsible inside" open="misc-keys">Misc Keys</button>
+							<label class="switch">
+								<input type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div id="misc-keys" class="content settings">
+							<div class="setting">
+								<p>Space</p>
+								<label class="switch">
+									<input key="0" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Escape</p>
+								<label class="switch">
+									<input key="1" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Tab</p>
+								<label class="switch">
+									<input key="2" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Grave</p>
+								<label class="switch">
+									<input key="71" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Minus</p>
+								<label class="switch">
+									<input key="72" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Equal</p>
+								<label class="switch">
+									<input key="73" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Backspace</p>
+								<label class="switch">
+									<input key="74" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Left Bracket</p>
+								<label class="switch">
+									<input key="75" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Right Bracket</p>
+								<label class="switch">
+									<input key="76" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Backslash</p>
+								<label class="switch">
+									<input key="77" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Semicolon</p>
+								<label class="switch">
+									<input key="78" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Quote</p>
+								<label class="switch">
+									<input key="79" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Return</p>
+								<label class="switch">
+									<input key="80" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Comma</p>
+								<label class="switch">
+									<input key="81" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Period</p>
+								<label class="switch">
+									<input key="82" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Slash</p>
+								<label class="switch">
+									<input key="83" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Function Keys -->
+						<div class="setting">
+							<button class="collapsible inside" open="function-keys">Function Keys</button>
+							<label class="switch">
+								<input type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div id="function-keys" class="content settings">
+							<div class="setting">
+								<p>F1</p>
+								<label class="switch">
+									<input key="11" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F2</p>
+								<label class="switch">
+									<input key="12" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F3</p>
+								<label class="switch">
+									<input key="13" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F4</p>
+								<label class="switch">
+									<input key="14" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F5</p>
+								<label class="switch">
+									<input key="15" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F6</p>
+								<label class="switch">
+									<input key="16" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F7</p>
+								<label class="switch">
+									<input key="17" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F8</p>
+								<label class="switch">
+									<input key="18" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F9</p>
+								<label class="switch">
+									<input key="19" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F10</p>
+								<label class="switch">
+									<input key="20" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F11</p>
+								<label class="switch">
+									<input key="21" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F12</p>
+								<label class="switch">
+									<input key="22" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F13</p>
+								<label class="switch">
+									<input key="23" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F14</p>
+								<label class="switch">
+									<input key="24" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F15</p>
+								<label class="switch">
+									<input key="25" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F16</p>
+								<label class="switch">
+									<input key="26" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F17</p>
+								<label class="switch">
+									<input key="27" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F18</p>
+								<label class="switch">
+									<input key="28" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F19</p>
+								<label class="switch">
+									<input key="29" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F20</p>
+								<label class="switch">
+									<input key="30" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F21</p>
+								<label class="switch">
+									<input key="31" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F22</p>
+								<label class="switch">
+									<input key="32" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F23</p>
+								<label class="switch">
+									<input key="33" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>F24</p>
+								<label class="switch">
+									<input key="34" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Numerical Keypads Keys -->
+						<div class="setting">
+							<button class="collapsible inside" open="numerical-keypads-keys">Numerical Keypads Keys</button>
+							<label class="switch">
+								<input type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div id="numerical-keypads-keys" class="content settings">
+							<div class="setting">
+								<p>Add</p>
+								<label class="switch">
+									<input key="96" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Subtract</p>
+								<label class="switch">
+									<input key="97" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Multiply</p>
+								<label class="switch">
+									<input key="98" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Divide</p>
+								<label class="switch">
+									<input key="99" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Decimal</p>
+								<label class="switch">
+									<input key="100" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Enter</p>
+								<label class="switch">
+									<input key="101" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 0</p>
+								<label class="switch">
+									<input key="102" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 1</p>
+								<label class="switch">
+									<input key="103" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 2</p>
+								<label class="switch">
+									<input key="104" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 3</p>
+								<label class="switch">
+									<input key="105" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 4</p>
+								<label class="switch">
+									<input key="106" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 5</p>
+								<label class="switch">
+									<input key="107" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 6</p>
+								<label class="switch">
+									<input key="108" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 7</p>
+								<label class="switch">
+									<input key="109" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 8</p>
+								<label class="switch">
+									<input key="110" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Pad 9</p>
+								<label class="switch">
+									<input key="111" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- System Command Keys -->
+						<div class="setting">
+							<button class="collapsible inside" open="system-command-keys">System Command Keys</button>
+							<label class="switch">
+								<input type="checkbox" checked disabled />
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div id="system-command-keys" class="content settings">
+							<div class="setting">
+								<p>Print</p>
+								<label class="switch">
+									<input key="88" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Pause</p>
+								<label class="switch">
+									<input key="89" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Insert</p>
+								<label class="switch">
+									<input key="90" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Delete</p>
+								<label class="switch">
+									<input key="91" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Home</p>
+								<label class="switch">
+									<input key="92" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>End</p>
+								<label class="switch">
+									<input key="93" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>PageUp</p>
+								<label class="switch">
+									<input key="94" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>PageDown</p>
+								<label class="switch">
+									<input key="95" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Caps Lock</p>
+								<label class="switch">
+									<input key="112" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Scroll Lock</p>
+								<label class="switch">
+									<input key="113" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Number Lock</p>
+								<label class="switch">
+									<input key="114" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Mute</p>
+								<label class="switch">
+									<input key="115" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Volume Down</p>
+								<label class="switch">
+									<input key="116" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Volume Up</p>
+								<label class="switch">
+									<input key="117" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Play</p>
+								<label class="switch">
+									<input key="118" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Stop</p>
+								<label class="switch">
+									<input key="119" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Pause</p>
+								<label class="switch">
+									<input key="120" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Previous</p>
+								<label class="switch">
+									<input key="121" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Next</p>
+								<label class="switch">
+									<input key="122" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Rewind</p>
+								<label class="switch">
+									<input key="123" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Forward</p>
+								<label class="switch">
+									<input key="124" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Repeat</p>
+								<label class="switch">
+									<input key="125" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+							<div class="setting">
+								<p>Audio Random</p>
+								<label class="switch">
+									<input key="126" type="checkbox" checked disabled />
+									<span class="slider"></span>
+								</label>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<h2 class="divider">Connection Control</h2>
+				<h4 id="disconnect-text" class="green red">Connecting...</h4>
+				<button class="user-btn" onclick="exit();">Disconnect</button>
+
+				<h2 class="divider">Window Control</h2>
+				<button id="toggle-mute-btn" class="user-btn safe mt-4" onclick="toggleMute();">
+					Mute Remote System Sound
+				</button>
+				<button id="toggle-fullscreen-btn" class="user-btn safe" onclick="toggleFullscreen();">Fullscreen</button>
+
+				<h2 class="divider">Debug Menu</h2>
+				<div class="settings">
+					<button class="collapsible inside">Local (Receiver) Inbound Information</button>
+					<div id="local-debug" class="content settings">
+						<p class="debug-title">General:</p>
+						<div class="setting debug-text">
+							<p>Last Updated</p>
+							<p class="lastUpdated">never</p>
+						</div>
+						<div class="setting debug-text">
+							<p>Connected to</p>
+							<p class="connectedHost">unknown</p>
+						</div>
+						<div class="setting debug-text">
+							<p>Candidate Type</p>
+							<p class="candidateType">unknown</p>
+						</div>
+						<div class="setting debug-text">
+							<p>Protocol</p>
+							<p class="protocol">unknown</p>
+						</div>
+						<div class="audio">
+							<p class="debug-title">Audio:</p>
+							<div class="setting debug-text">
+								<p>Bandwidth</p>
+								<p class="bandwidth">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Codec</p>
+								<p class="codec">unknown</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Lost Rate</p>
+								<p class="packetsLost-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Discarded Rate</p>
+								<p class="packetsDiscarded-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Received Rate</p>
+								<p class="packetsReceived-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bytes Received Rate</p>
+								<p class="bytesReceived-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Header Bytes Received Rate</p>
+								<p class="headerBytesReceived-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Lost</p>
+								<p class="packetsLost">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Discarded</p>
+								<p class="packetsDiscarded">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Received</p>
+								<p class="packetsReceived">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bytes Received</p>
+								<p class="bytesReceived">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Header Bytes Received</p>
+								<p class="headerBytesReceived">0</p>
+							</div>
+						</div>
+						<div class="video">
+							<p class="debug-title">Video:</p>
+							<div class="setting debug-text">
+								<p>FPS</p>
+								<p class="framesPerSecond">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bandwidth</p>
+								<p class="bandwidth">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Codec</p>
+								<p class="codec">unknown</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Lost Rate</p>
+								<p class="packetsLost-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Received Rate</p>
+								<p class="packetsReceived-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bytes Received Rate</p>
+								<p class="bytesReceived-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Header Bytes Received Rate</p>
+								<p class="headerBytesReceived-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Frames Received Rate</p>
+								<p class="framesReceived-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Frames Dropped Rate</p>
+								<p class="framesDropped-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Lost</p>
+								<p class="packetsLost">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Received</p>
+								<p class="packetsReceived">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bytes Received</p>
+								<p class="bytesReceived">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Header Bytes Received</p>
+								<p class="headerBytesReceived">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Frames Received</p>
+								<p class="framesReceived">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Frames Dropped</p>
+								<p class="framesDropped">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Frame Size</p>
+								<p class="frameSize">0x0</p>
+							</div>
+						</div>
+
+						<button class="collapsible inside debug-title">Raw Data</button>
+						<div class="content settings">
+							<div class="raw"></div>
+						</div>
+					</div>
+					<button class="collapsible inside">Remote (Sender) Information</button>
+					<div id="remote-debug" class="content settings">
+						<p class="debug-title">General:</p>
+						<div class="setting debug-text">
+							<p>Last Updated</p>
+							<p class="lastUpdated">never</p>
+						</div>
+						<div class="setting debug-text">
+							<p>Connected to</p>
+							<p class="connectedHost">unknown</p>
+						</div>
+						<div class="setting debug-text">
+							<p>Candidate Type</p>
+							<p class="candidateType">unknown</p>
+						</div>
+						<div class="setting debug-text">
+							<p>Protocol</p>
+							<p class="protocol">unknown</p>
+						</div>
+						<div class="audio">
+							<p class="debug-title">Audio:</p>
+							<div class="setting debug-text">
+								<p>Round Trip Time (Delay)</p>
+								<p class="roundTripTime">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bandwidth</p>
+								<p class="bandwidth">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Lost Rate</p>
+								<p class="packetsLost-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Sent Rate</p>
+								<p class="packetsSent-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bytes Sent Rate</p>
+								<p class="bytesSent-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Header Bytes Sent Rate</p>
+								<p class="headerBytesSent-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Lost</p>
+								<p class="packetsLost">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Sent</p>
+								<p class="packetsSent">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bytes Sent</p>
+								<p class="bytesSent">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Header Bytes Sent</p>
+								<p class="headerBytesSent">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Target Bitrate</p>
+								<p class="targetBitrate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Is Active</p>
+								<p class="active debug-element">false</p>
+							</div>
+						</div>
+						<div class="video">
+							<p class="debug-title">Video:</p>
+							<div class="setting debug-text">
+								<p>FPS</p>
+								<p class="framesPerSecond">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Round Trip Time (Delay)</p>
+								<p class="roundTripTime">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bandwidth</p>
+								<p class="bandwidth">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Lost Rate</p>
+								<p class="packetsLost-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Sent Rate</p>
+								<p class="packetsSent-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bytes Sent Rate</p>
+								<p class="bytesSent-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Header Bytes Sent Rate</p>
+								<p class="headerBytesSent-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Frames Sent Rate</p>
+								<p class="framesSent-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packet Send Delay Rate</p>
+								<p class="totalPacketSendDelay-rate">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Lost</p>
+								<p class="packetsLost">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Packets Sent</p>
+								<p class="packetsSent">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Bytes Sent</p>
+								<p class="bytesSent">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Header Bytes Sent</p>
+								<p class="headerBytesSent">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Frames Sent</p>
+								<p class="framesSent">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Total Packet Send Delay</p>
+								<p class="totalPacketSendDelay">0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Frame Size</p>
+								<p class="frameSize">0x0</p>
+							</div>
+							<div class="setting debug-text">
+								<p>Is Active</p>
+								<p class="active debug-element">false</p>
+							</div>
+						</div>
+
+						<button class="collapsible inside debug-title">Raw Data</button>
+						<div class="content settings">
+							<div class="raw"></div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+		<script src="socket.io.js"></script>
+		<script src="join.js"></script>
+	</body>
+</html>
